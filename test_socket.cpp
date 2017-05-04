@@ -1,12 +1,15 @@
 #include "socket.hpp"
+#include <iostream>
 
 
 int
 main()
 {
     try {
-        Socket sock ("localhost", 5555);
-        sock.send("Hello via Socket\n");
+        bool udp = false;
+        Socket sock ("localhost", 5555, true, udp);
+        std::cout << sock.send("Hello via Socket\n")
+                  << std::endl;
     } catch (const char *msg) {
         fprintf(stderr, "ERROR: %s\n", msg);
     } catch (std::exception &e) {

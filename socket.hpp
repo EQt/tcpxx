@@ -42,6 +42,9 @@ public:
 private:
     socketfd_t sfd = 0;
     bool connected = false;
+    bool verbose;
+    bool udp;
+    struct addrinfo *result = nullptr, *rp = nullptr;
     #ifdef _WIN32
     WSADATA wsaData;
     #endif
@@ -53,9 +56,9 @@ Socket::Socket(const char *ipaddr,
                short port,
                bool verbose,
                bool udp)
+    : verbose(verbose), udp(udp)
 {
     struct addrinfo hints;
-    struct addrinfo *result, *rp;
     int s;
     #ifdef _WIN32
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
@@ -66,8 +69,9 @@ Socket::Socket(const char *ipaddr,
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
     if (udp) {
-        hints.ai_socktype = SOCK_STREAM; /* Datagram socket */
-        hints.ai_protocol = IPPROTO_UDP;
+        hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+        hints.ai_protocol = 0;
+        hints.ai_flags = 0;
     } else {
         hints.ai_socktype = SOCK_STREAM; /* Stream socket */
         hints.ai_protocol = IPPROTO_TCP; /* TCP protocol */
@@ -87,21 +91,29 @@ Socket::Socket(const char *ipaddr,
             break;                  /* Success */
         }
     }
-    freeaddrinfo(result);
 
     if (connected) {
-        if (verbose)
-            printf("connected");
+        if (verbose) {
+            printf("rp: %p\n", rp);
+            printf("connected\n");
+        }
     }
     else {
         error("Could not connect to %s:%d", ipaddr, port);
-    }        
+    }
 }
 
 
 size_t
 Socket::send(const char *s, size_t len)
 {
+    if (udp) {
+        if (verbose)
+            printf("udp send\n");
+        return size_t(::sendto(sfd, s, len, 0,
+                               rp->ai_addr,
+                               rp->ai_addrlen));
+    }
     return size_t(::send(sfd, s, len, 0));
 }
 
@@ -132,4 +144,6 @@ Socket::~Socket()
         close(sfd);
         #endif
     }
+    if (result)
+        freeaddrinfo(result);
 }
