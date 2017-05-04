@@ -11,14 +11,17 @@
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
 #  include <windows.h>
-#  pragma comment(lib, "ws2_32.lib")
 #  define socketfd_t SOCKET
+#  ifdef _MSC_VER
+#    pragma comment(lib, "ws2_32.lib")
+#  endif
 #else
 #  include <sys/types.h>
 #  include <sys/socket.h>
 #  include <netinet/in.h>
 #  include <unistd.h>
 #  include <netdb.h>
+#  define INVALID_SOCKET -1
 #  define socketfd_t int
 #endif
 
@@ -39,6 +42,9 @@ public:
 private:
     socketfd_t sfd = 0;
     bool connected = false;
+    #ifdef _WIN32
+    WSADATA wsaData;
+    #endif
     void error(const char* format, ... );
 };
 
@@ -51,13 +57,17 @@ Socket::Socket(const char *ipaddr,
     struct addrinfo hints;
     struct addrinfo *result, *rp;
     int s;
+    #ifdef _WIN32
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        error("WSAStartup");
+    #endif
 
     /* Obtain address(es) matching host/port */
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
     if (udp) {
         hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-        hints.ai_protocol = 0;          /* Any protocol */
+        hints.ai_protocol = IPPROTO_UDP;
     } else {
         hints.ai_socktype = SOCK_STREAM; /* Stream socket */
         hints.ai_protocol = IPPROTO_TCP; /* TCP protocol */
@@ -70,7 +80,7 @@ Socket::Socket(const char *ipaddr,
     for (rp = result; rp != NULL; rp = rp->ai_next) {
         sfd = socket(rp->ai_family, rp->ai_socktype,
                      rp->ai_protocol);
-        if (sfd == -1)
+        if (sfd == INVALID_SOCKET)
             continue;
         if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) {
             connected = true;
@@ -99,6 +109,9 @@ Socket::send(const char *s, size_t len)
 void
 Socket::error(const char* format, ... )
 {
+    #ifdef _WIN32
+    WSACleanup();
+    #endif
     char msg[4096];
     va_list args;
     va_start(args, format);
@@ -111,6 +124,12 @@ Socket::error(const char* format, ... )
 
 Socket::~Socket()
 {
-    if (connected)
+    if (connected) {
+        #ifdef _WIN32
+        closesocket(sfd);
+        WSACleanup();
+        #else
         close(sfd);
+        #endif
+    }
 }
