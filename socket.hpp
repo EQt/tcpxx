@@ -28,7 +28,7 @@ class Socket
 public:
     Socket(const char *ipaddr,
            short port,
-           bool verbose = false,
+           bool verbose = true,
            bool udp = false);
     ~Socket();
     size_t send(const std::string &s)
@@ -80,7 +80,8 @@ Socket::Socket(const char *ipaddr,
     freeaddrinfo(result);
 
     if (connected) {
-        printf("connected");
+        if (verbose)
+            printf("connected");
     }
     else {
         error("Could not connect to %s:%d", ipaddr, port);
